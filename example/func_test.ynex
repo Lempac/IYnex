@@ -1,0 +1,6 @@
+//function test//
+test()
+    out("test");
+;
+t1 = test;
+t1();

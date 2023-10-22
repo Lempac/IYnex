@@ -1,0 +1,6 @@
+//loop test//
+i;
+while(i<20)
+    out(i);
+    i+=1;
+;

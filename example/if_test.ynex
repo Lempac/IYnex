@@ -1,0 +1,13 @@
+//branch statment test//
+x;
+i;
+if(i==x)
+    out("true");
+else(i!=x)
+    out("what");
+else(i>=x)
+    out("what");
+else(i<=x)
+    out("what");
+else
+    out("false");
