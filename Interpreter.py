@@ -1,90 +1,95 @@
 from __future__ import annotations
 import sys, os
+from typing import cast
 
-def lex(line: str) -> list[tuple[str, str]] | str | None:
+def lexer(chars: str) -> list[tuple[str, str]] | None:
     tokens: list[tuple[str, str]] = []
-    line = line.strip()
-    if line == "":
-        return
-    for index, letter in enumerate(line):
-        if letter.isalpha():
+    if chars == "":
+        return [("END-OF-INPUT", "EOI")]
+    for index, char in enumerate(chars):
+        if char.isalpha():
             if len(tokens) > 0:
-                if tokens[-1][0] == "STR-BEGIN" or tokens[-1][0] == "COMMENT-BEGIN":
-                    tokens.append(("STR", letter))
+                if tokens[-1][0] in ("STR-BEGIN", "COMMENT-BEGIN"):
+                    tokens.append(("STR", char))
                 elif tokens[-1][0] == "STR":
-                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + letter))
+                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + char))
                 elif tokens[-1][0] == "IDENT":
-                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + letter))
+                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + char))
                 else:
-                    tokens.append(("IDENT", letter))
+                    tokens.append(("IDENT", char))
             else:
-                tokens.append(("IDENT", letter))
-        elif letter.isdigit():
+                tokens.append(("IDENT", char))
+        elif char.isdigit():
             if len(tokens) > 0:
                 if tokens[-1][0] == "INT":
-                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + letter))
+                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + char))
                 elif tokens[-1][0] == "IDENT":
-                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + letter))
+                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + char))
                 else:
-                    tokens.append(("INT", letter))
+                    tokens.append(("INT", char))
             else:
-                tokens.append(("INT", letter))
-        elif letter.isascii():
-            if letter == "/":
+                tokens.append(("INT", char))
+        elif char.isascii():
+            if char == ";":
+                tokens.append(("END-OF-LINE", char))
+            elif char == "/":
                 if len(tokens) > 0 and tokens[-1][0] == "DIV":
                     if len(tokens) > 1 and tokens[-2][0] == "STR":
                         tokens[-1] = ("COMMENT-END", "//")
                     else:
                         tokens[-1] = ("COMMENT-BEGIN", "//")
                 else:
-                    tokens.append(("DIV", letter))
-            elif letter == "'" or letter == '"':
+                    tokens.append(("DIV", char))
+            elif char == "'" or char == '"':
                 if len(tokens) > 0 and tokens[-1][0] == "STR":
-                    tokens.append(("STR-END", letter))
+                    tokens.append(("STR-END", char))
                 else:
-                    tokens.append(("STR-BEGIN", letter))
-            elif letter == ".":
-                tokens.append(("DOT", letter))
-            elif letter == "=":
+                    tokens.append(("STR-BEGIN", char))
+            elif char == ".":
+                tokens.append(("DOT", char))
+            elif char == "&":
+                tokens.append(("AND", char))
+            elif char == "|":
+                tokens.append(("OR", char))
+            elif char == "#":
+                tokens.append(("LEN", char))
+            elif char == "=":
                 if len(tokens) > 0 and tokens[-1][0] == "SET":
-                    tokens[-1] = ("EQU", str(tokens[-1][1] + letter))
-                elif len(tokens) > 0 and (
-                    tokens[-1][0] == "NOT"
-                    or tokens[-1][0] == "LESS"
-                    or tokens[-1][0] == "GREATER"
-                ):
+                    tokens[-1] = ("EQU", str(tokens[-1][1] + char))
+                elif len(tokens) > 0 and tokens[-1][0] in ("NOT", "LESS", "GREATER"):
                     tokens[-1] = (
                         tokens[-1][0] + "-EQU",
-                        str(tokens[-1][1] + letter),
+                        str(tokens[-1][1] + char),
                     )
                 else:
-                    tokens.append(("SET", letter))
-            elif letter == "<":
-                tokens.append(("LESS", letter))
-            elif letter == ">":
-                tokens.append(("GREATER", letter))
-            elif letter == "!":
-                tokens.append(("NOT", letter))
-            elif letter == "*":
-                tokens.append(("MUL", letter))
-            elif letter == "-":
-                tokens.append(("SUB", letter))
-            elif letter == "+":
-                tokens.append(("ADD", letter))
-            elif letter == "(":
-                tokens.append(("OPEN-P", letter))
-            elif letter == ")":
-                tokens.append(("CLOSE-P", letter))
-            elif letter.isspace():
+                    tokens.append(("SET", char))
+            elif char == "<":
+                tokens.append(("LESS", char))
+            elif char == ">":
+                tokens.append(("GREATER", char))
+            elif char == "!":
+                tokens.append(("NOT", char))
+            elif char == "*":
+                tokens.append(("MUL", char))
+            elif char == "-":
+                tokens.append(("SUB", char))
+            elif char == "+":
+                tokens.append(("ADD", char))
+            elif char == "(":
+                tokens.append(("OPEN-P", char))
+            elif char == ")":
+                tokens.append(("CLOSE-P", char))
+            elif char.isspace():
                 if len(tokens) > 0 and tokens[-1][0] == "STR":
-                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + letter))
+                    tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + char))
                 else:
-                    continue
+                    tokens.append(("WHITESPACE", char))
             else:
-                return "Unknown " + str(letter) + " symbal at: " + str(index)
+                exitWithError("Unknown " + str(char) + " symbal at: " + str(index))
         else:
-            return "Unknown " + str(letter) + " char at: " + str(index)
-    return tokens
+            exitWithError("Unknown " + str(char) + " char at: " + str(index))
+    tokens.append(("END-OF-INPUT", "EOI"))
+    return [ token for token in tokens if token[0] != "WHITESPACE" ]
 
 class Node():
     def __init__(self, name : str, value : str, parent : Node | None):
@@ -97,57 +102,78 @@ class Node():
         self.children.append(obj)
         return obj
 
-def parse(tokens : list[tuple[str, str]]) -> Node | str:
+class bidirectional_iterator(object):
+    def __init__(self, collection : list[tuple[str, str]]):
+        self.collection = collection
+        self.index = 0
+
+    def peek(self):
+        return self.collection[self.index+1] if self.index+1 < len(self.collection) else None
+
+    def next(self):
+        if self.index+1 < len(self.collection):
+            self.index += 1
+            return self.collection[self.index]
+        else:
+            return None
+
+    def prev(self):
+        self.index -= 1
+        return None if self.index < 0 else self.collection[self.index]
+
+    def curr(self):
+        return self.collection[self.index]
+
+
+def parse(tokens : list[tuple[str, str]]) -> Node:
     line = Node("LINE", "LINE", None)
     currentNode = line
-    isComment = False
-    for token in tokens:
+    Itokens = bidirectional_iterator(tokens)
+    while Itokens.curr()[0] != "END-OF-INPUT":
+        token = Itokens.curr()
         if token[0] == "COMMENT-BEGIN":
-            currentNode = currentNode.add_child(Node("COMMENT-BEGIN", "//", currentNode))
-            isComment = True
-        elif token[0] == "COMMENT-END":
-            currentNode.add_child(Node("COMMENT-END", "//", currentNode))
-            while currentNode.name != "COMMENT-BEGIN":
-                if not currentNode.parent:
-                    return "Couldnt find COMMENT-BEGIN(//)!"
-                else:
-                    currentNode = currentNode.parent
-            currentNode = currentNode.parent
-            isComment = False
-        elif isComment:
-            currentNode = currentNode.add_child(Node(*token, currentNode))
-        elif token[0] == "SET":
-            if currentNode.name != "IDENT":
-                return "What ever your setting in line, the left side is not a IDENT!"
-            currentNode = currentNode.add_child(Node(*token, currentNode))
-        elif token[0] == "OPEN-P":
-            pass
-        elif token[0] == "INT":
-            pass
+            Itokens, currentNode = COMMENT(Itokens, currentNode)
+        elif token[0] == "IDENT":
+            if cast(tuple[str, str], Itokens.peek())[0] == "SET":
+                Itokens, currentNode = IDENT(Itokens, currentNode)
+            elif cast(tuple[str, str], Itokens.peek())[0] == "INT":
+                Itokens, currentNode = EXPRESSION(Itokens, currentNode)
         else:
-            line.add_child(Node(*token, currentNode))
+            exitWithError("Unknown token: "+token[0]+" with value: "+token[1])
     return line
 
-def exitWithError(Error : str):
-    print(Error)
-    sys.exit(Error)
+def COMMENT(tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
+    currentNode = currentNode.add_child(Node("COMMENT-BLOCK", "////", currentNode))
+    currentNode.add_child(Node(*tokens.curr(), currentNode))
+    while tokens.next() != None and tokens.curr()[0] != "COMMENT-END":
+        currentNode.add_child(Node(*tokens.curr(), currentNode))
+    if tokens.peek() is None:
+        exitWithError("Forgot to close comment(//)?")
+    currentNode.add_child(Node(*cast(tuple[str, str], tokens.next()), currentNode))
+    currentNode = currentNode.parent
+    return tokens, currentNode
 
+def IDENT(tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
+    return tokens, currentNode
+
+def EXPRESSION(tokens : bidirectional_iterator, currentNode : Node):
+    return tokens, currentNode
+
+def emitter(NodeTree : Node):
+    pass
+
+def exitWithError(Error : str):
+    # print(Error)
+    sys.exit(Error)
 
 if len(sys.argv) == 1 or not os.path.exists(sys.argv[1]):
     exitWithError("Need file input!")
 
 with open(sys.argv[1]) as sourceFile:
-    lines = sourceFile.read().split(";")
-    for index, line in enumerate(lines):
-        lexResult = lex(line)
-        if lexResult == None:
-            continue
-        elif type(lexResult) == str:
-            exitWithError("On line: " + str(index+1) + " " + str(lexResult))
-        elif type(lexResult) == list[tuple[str, str]]:
-            print(lexResult)
-            parseResult = parse(lexResult)
-            if type(parseResult) == str:
-                exitWithError("On line: " + str(index+1) + " " + str(parseResult))
-            else:
-                print(parseResult)
+    chars = sourceFile.read()
+    lexResult = lexer(chars)
+    if type(lexResult) is list:
+        print(lexResult)
+        parseResult = parse(lexResult)
+        if type(parseResult) is Node:
+            print([child.name for child in parseResult.children])
