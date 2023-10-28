@@ -2,12 +2,23 @@
 x;
 i;
 if(i==x)
-    out("true");
+    out("no");
+;
 else(i!=x)
-    out("what");
+    out("in");
+;
 else(i>=x)
-    out("what");
+    out("this");
+;
 else(i<=x)
-    out("what");
+    out("first");
+;
+else(i<x)
+    out("first");
+;
+else(i>x)
+    out("first");
+;
 else
-    out("false");
+    out("like");
+;
