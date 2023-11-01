@@ -50,7 +50,10 @@ def lexer(chars: str) -> list[tuple[str, str]]:
                     else:
                         tokens.append(("STR-END", char))
                 elif len(tokens) > 1 and tokens[-1][0] == "STR-BEGIN":
-                    tokens.append(("STR-END", char))
+                    if tokens[-1][1] != char:
+                        tokens.append(("STR", char))
+                    else:
+                        tokens.append(("STR-END", char))
                 else:
                     tokens.append(("STR-BEGIN", char))
             elif len(tokens) > 1 and tokens[-1][0] == "STR" and tokens[-2][0] != "COMMENT-BEGIN":
