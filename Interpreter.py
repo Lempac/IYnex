@@ -171,9 +171,9 @@ class Parse():
 
     def parse(self, tokens : list[tuple[str, str]]) -> Node:
         line = Node("LINE", "LINE", None)
-        currentNode = line
         Itokens = bidirectional_iterator(tokens)
         while not self.peek(Itokens.curr(), "END-OF-INPUT"):
+            currentNode = line
             Itokens, currentNode = self.STATMENT(Itokens, currentNode)
         return line
 
@@ -213,7 +213,8 @@ class Parse():
 
     def COMMENT(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
         self.match(tokens.curr(), "COMMENT-BEGIN", "//")
-        currentNode = currentNode.add_child_token(("COMMENT-BLOCK", "////"))
+        currentNode.name = "COMMENT-BLOCK"
+        currentNode.value = "////"
         currentNode.add_child_token(tokens.curr())
         tokens.next()
         if tokens.curr()[0] == "STR":
@@ -503,68 +504,88 @@ class Parse():
         return tokens, currentNode
 
     def OUT(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
-        currentNode = currentNode.add_child_token(("OUT-STATMENT", tokens.curr()[1]))
+        out_statment = currentNode
+        currentNode.name = "OUT-STATMENT"
+        currentNode.value = tokens.curr()[1]
         tokens, currentNode = self.IDENT(tokens, currentNode)
         tokens, currentNode = self.OPEN_P(tokens, currentNode)
         tokens, currentNode = self.COMPARISON(tokens, currentNode)
+        currentNode = out_statment
         tokens, currentNode = self.CLOSE_P(tokens, currentNode)
         tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
         return tokens, currentNode
 
     def IN(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
-        currentNode = currentNode.add_child_token(("IN-STATMENT", tokens.curr()[1]))
+        in_statment = currentNode
+        currentNode.name = "IN-STATMENT"
+        currentNode.value = tokens.curr()[1]
         tokens, currentNode = self.IDENT(tokens, currentNode)
         tokens, currentNode = self.OPEN_P(tokens, currentNode)
         tokens, currentNode = self.COMPARISON(tokens, currentNode)
+        currentNode = in_statment
         tokens, currentNode = self.CLOSE_P(tokens, currentNode)
         tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
         return tokens, currentNode
 
     def WHILE(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
-        currentNode = currentNode.add_child_token(("WHILE-STATMENT", tokens.curr())[1])
+        while_statment = currentNode
+        currentNode.name = "WHILE-STATMENT"
+        currentNode.value = tokens.curr()[1]
         tokens, currentNode = self.IDENT(tokens, currentNode)
         tokens, currentNode = self.OPEN_P(tokens, currentNode)
         tokens, currentNode = self.COMPARISON(tokens, currentNode)
+        currentNode = while_statment
         tokens, currentNode = self.CLOSE_P(tokens, currentNode)
         if self.peek(tokens.curr(), "END-OF-INPUT"):
             tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
         else:
             while not self.peek(tokens.curr(), "END-OF-LINE"):
                 tokens, currentNode = self.STATMENT(tokens, currentNode)
+                currentNode = while_statment
             tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
         return tokens, currentNode
 
     def IF(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
-        currentNode = currentNode.add_child_token(("IF-STATMENT", tokens.curr())[1])
+        if_statment = currentNode
+        currentNode.name = "IF-STATMENT"
+        currentNode.value = tokens.curr()[1]
         tokens, currentNode = self.IDENT(tokens, currentNode)
         tokens, currentNode = self.OPEN_P(tokens, currentNode)
         tokens, currentNode = self.COMPARISON(tokens, currentNode)
+        currentNode = if_statment
         tokens, currentNode = self.CLOSE_P(tokens, currentNode)
         while not self.peek(tokens.curr(), "END-OF-LINE"):
             tokens, currentNode = self.STATMENT(tokens, currentNode)
+            currentNode = if_statment
         tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
         return tokens, currentNode
 
     def ELSE(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
-        currentNode = currentNode.add_child_token(("ELSE-STATMENT", tokens.curr())[1])
+        else_statment = currentNode
+        currentNode.name = "ELSE-STATMENT"
+        currentNode.value = tokens.curr()[1]
         tokens, currentNode = self.IDENT(tokens, currentNode)
         if self.peek(tokens.curr(), "OPEN-P"):
             tokens, currentNode = self.OPEN_P(tokens, currentNode)
             tokens, currentNode = self.COMPARISON(tokens, currentNode)
+            currentNode = else_statment
             tokens, currentNode = self.CLOSE_P(tokens, currentNode)
             while not self.peek(tokens.curr(), "END-OF-LINE"):
                 tokens, currentNode = self.STATMENT(tokens, currentNode)
+                currentNode = else_statment
             tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
         else:
             while not self.peek(tokens.curr(), "END-OF-LINE"):
                 tokens, currentNode = self.STATMENT(tokens, currentNode)
+                currentNode = else_statment
             tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
         return tokens, currentNode
 
     def FUNCTION(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
+        function_statment = currentNode
         prev_child = currentNode.get_child()
         if prev_child is not None:
-            currentNode = currentNode.add_child_token(("FUNCTION-", ""))
+            currentNode.name = "FUNCTION-"
             prev_child.change_parent(currentNode)
         else:
             exitWithError("prev_child is missing?")
@@ -574,6 +595,7 @@ class Parse():
         else:
             tokens, currentNode = self.OPEN_P(tokens, currentNode)
             tokens, currentNode = self.COMPARISON(tokens, currentNode)
+            currentNode = function_statment
             tokens, currentNode = self.CLOSE_P(tokens, currentNode)
 
         if self.peek(tokens.curr(), "END-OF-LINE"):
@@ -583,15 +605,17 @@ class Parse():
             currentNode.name += "SET"
             while not self.peek(tokens.curr(), "END-OF-LINE"):
                 tokens, currentNode = self.STATMENT(tokens, currentNode)
+                currentNode = function_statment
             tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
         return tokens, currentNode
 
     def VARIABLE(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
         self.match(tokens.curr(), ("END-OF-LINE", "SET"), (";", "="))
+        variable_statment = currentNode
         if self.peek(tokens.curr(), "SET"):
             prev_child = currentNode.get_child()
             if prev_child is not None:
-                currentNode = currentNode.add_child_token(("VARIABLE-SET", ""))
+                currentNode.name = "VARIABLE-SET"
                 prev_child.change_parent(currentNode)
                 tokens, currentNode = self.SET(tokens, currentNode)
                 if self.peek(tokens.curr(), "OPEN-P"):
@@ -603,17 +627,19 @@ class Parse():
                         else:
                             tokens, currentNode = self.COMPARISON(tokens, currentNode)
                             tokens, currentNode = self.VARIABLE(tokens, currentNode)
+                    currentNode = variable_statment
                     tokens, currentNode = self.CLOSE_P(tokens, currentNode)
                     tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
                 else:
                     tokens, currentNode = self.COMPARISON(tokens, currentNode)
+                    currentNode = variable_statment
                     tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
             else:
                 exitWithError("prev_child is missing?")
         else:
             prev_child = currentNode.get_child()
             if prev_child is not None:
-                currentNode = currentNode.add_child_token(("VARIABLE-UNSET", ""))
+                currentNode.name = "VARIABLE-UNSET"
                 prev_child.change_parent(currentNode)
                 tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
             else:
@@ -641,15 +667,12 @@ class Parse():
             else:
                 tokens, currentNode = self.IDENT(tokens, currentNode)
                 self.match(tokens.curr(), ("END-OF-LINE", "OPEN-P", "SET"), ("=", "(", ";"))
-                if self.peek(tokens.curr(), "END-OF-LINE"):
-                    tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
-                elif self.peek(tokens.curr(), "OPEN-P"):
+                if self.peek(tokens.curr(), "OPEN-P"):
                     tokens, currentNode = self.FUNCTION(tokens, currentNode)
                 else:
                     tokens, currentNode = self.VARIABLE(tokens, currentNode)
         elif self.peek(tokens.curr(), "END-OF-LINE"):
             tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
-        
         return tokens, currentNode
 
 def emitter(NodeTree : Node):
@@ -660,11 +683,14 @@ def exitWithError(Error : str) -> NoReturn:
     sys.exit(colored(Error, 'red'))
 
 def print_node(node : Node):
+    print((node.name, node.value))
+    print("Has:")
     for element in node.children:
         print((element.name, element.value), end=" ")
-    print()
+    print("\n")
     for element in node.children:
-        print_node(element)
+        if len(element.children) != 0:
+            print_node(element)
 
 if len(sys.argv) == 1:
     exitWithError("Need file input(-f helloWorld.ynex) or string of code(-c \'out(\"hello world\");\')!")
