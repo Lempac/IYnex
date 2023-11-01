@@ -275,7 +275,7 @@ class Parse():
             currentNode.add_child_token(tokens.curr())
         else:
             prev_child = currentNode.get_child()
-            if prev_child is not None and prev_child.name == "TERM":
+            if prev_child is not None and (prev_child.name == "TERM" or prev_child.name == "STR"):
                 currentNode = currentNode.add_child_token(("ADD", "+"))
                 prev_child.change_parent(currentNode)
             else:
@@ -423,8 +423,10 @@ class Parse():
 
     def LEN(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
         self.match(tokens.curr(), "LEN", "#")
-        currentNode = currentNode.add_child_token(("LEN-EXPRESSION", tokens.curr()[1]))
+        currentNode.name = "LEN-EXPRESSION"
+        currentNode.value = tokens.curr()[1]
         currentNode.add_child_token(tokens.curr())
+        tokens.next()
         tokens, currentNode = self.PRIMARY(tokens, currentNode)
         return tokens, currentNode
 
@@ -463,10 +465,12 @@ class Parse():
 
     def EXPRESSION(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
         currentNode = currentNode.add_child_token(("EXPRESSION", ""))
+        expression_statment = currentNode
         if self.peek(tokens.curr(), "LEN"):
             tokens, currentNode = self.LEN(tokens, currentNode)
         elif self.peek(tokens.curr(), "STR-BEGIN"):
             tokens, currentNode = self.STR(tokens, currentNode)
+            currentNode = expression_statment
             if self.peek(tokens.curr(), "ADD"):
                 tokens, currentNode = self.ADD(tokens, currentNode)
                 tokens, currentNode = self.STR(tokens, currentNode)
@@ -482,8 +486,10 @@ class Parse():
 
     def COMPARISON(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
         currentNode = currentNode.add_child_token(("COMPARISON", ""))
+        comparison_statment = currentNode
         tokens, currentNode = self.EXPRESSION(tokens, currentNode)
         while self.peek(tokens.curr(), ("AND", "OR", "EQU", "LESS-EQU", "NOT-EQU", "GREATER-EQU", "GREATER", "LESS")):
+            currentNode = comparison_statment
             if self.peek(tokens.curr(), "AND"):
                 tokens, currentNode = self.AND(tokens, currentNode)
             elif self.peek(tokens.curr(), "OR"):
@@ -500,6 +506,7 @@ class Parse():
                 tokens, currentNode = self.GREATER(tokens, currentNode)
             elif self.peek(tokens.curr(), "LESS"):
                 tokens, currentNode = self.LESS(tokens, currentNode)
+            currentNode = comparison_statment
             tokens, currentNode = self.EXPRESSION(tokens, currentNode)      
         return tokens, currentNode
 
