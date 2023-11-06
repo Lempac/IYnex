@@ -1,6 +1,8 @@
 //function test//
 test()
+    x="test";
     out("test");
 ;
 t1 = test;
-t1();
+op = t1();
+out(op.test);

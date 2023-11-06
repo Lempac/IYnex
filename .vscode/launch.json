@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": ["-f", "./example/math.ynex"],
+            "args": ["-f","./example/math.ynex", "./example/fizz_buzz.ynex" , "./example/func.ynex" , "./example/hello_world.ynex" , "./example/if.ynex" , "./example/variable.ynex", "./example/while.ynex"],
             "justMyCode": true
         }
     ]

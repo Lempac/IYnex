@@ -16,14 +16,15 @@ statement = (
     |   comment
 )
 
-variable = ident ( "=" ( comparison ";" | "(" ( variable | primary "=" variable )* ")" ";" ) | ";" )
+variable = ident ( "=" ( comparison ("()") ";" | "(" ( variable | primary "=" variable )* ")" ";" ) | ";" )
 function = ident ( "(" ")" | "(" comparison ")" ) ( ";" | (statement)* ";" )
 
-comparison = expression (( "==" | "!=" | ">" | ">=" | "<" | "<=" | "&" | "|" ) expression)*
+comparison = expression (( "==" | "!=" | ">" | ">=" | "<" | "<=" | "&" | "|" ) expression)* | "(" expression ")"
 expression = ( term (( "-" | "+" ) term)* | string "+" string | string | "#" primary )
 term = unary (( "/" | "*" ) unary)*
 unary = ( "+" | "-" ) primary
-primary = int | decimal | string | ident
+primary = int | decimal | string | ident | bool
+bool = "T" | "F"
 int = [0-9]*
 text = [a-zA-Zint]
 string = ( "'" text "'" | """ text """ | "'" "'" | """ """ )

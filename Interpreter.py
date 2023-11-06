@@ -58,16 +58,23 @@ def lexer(chars: str) -> list[tuple[str, str]]:
                     tokens.append(("STR-BEGIN", char))
             elif len(tokens) > 1 and tokens[-1][0] == "STR" and tokens[-2][0] != "COMMENT-BEGIN":
                 tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + char))
-            elif char == ";":
-                tokens.append(("END-OF-LINE", char))
             elif char == "/":
                 if len(tokens) > 0 and tokens[-1][0] == "DIV":
-                    if len(tokens) > 1 and tokens[-2][0] == "STR":
+                    if len(tokens) > 1 and (tokens[-2][0] == "STR" or tokens[-2][0] == "COMMENT-BEGIN"):
                         tokens[-1] = ("COMMENT-END", "//")
                     else:
                         tokens[-1] = ("COMMENT-BEGIN", "//")
                 else:
                     tokens.append(("DIV", char))
+            elif len(tokens) > 0 and tokens[-1][0] == "COMMENT-BEGIN":
+                tokens.append(("STR", char))
+            elif len(tokens) > 0 and tokens[-1][0] == "STR":
+                tokens[-1] = (tokens[-1][0], str(tokens[-1][1] + char))
+            elif len(tokens) > 1 and ((tokens[-2][0] == "COMMENT-BEGIN" or tokens[-2][0] == "STR") and tokens[-1][0] == "DIV") and char != "/":
+                tokens[-2] = (tokens[-2][0], str(tokens[-2][1] + "/" + char))
+                tokens.pop(-1)
+            elif char == ";":
+                tokens.append(("END-OF-LINE", char))
             elif char == ".":
                 tokens.append(("DOT", char))
             elif char == "&":
@@ -120,10 +127,10 @@ class Node():
     def __init__(self, name : str, value : str, parent : Node | None):
         self.name = name
         self.value = value
-        if parent is not None:
-            self.parent = parent
+        self.parent = parent
         self.children : list[Node] = []
         self.index = -1
+
     def add_child(self, obj : Node) -> Node:
         self.children.append(obj)
         self.index += 1
@@ -140,10 +147,39 @@ class Node():
             return self.children[index]
     
     def change_parent(self, node : Node):
-        self.parent.children.remove(self)
-        self.parent.index -= 1
-        self.parent = node
-        self.parent.add_child(self)
+        if self.parent is not None:
+            self.parent.children.remove(self)
+            self.parent.index -= 1
+            self.parent = node
+            self.parent.add_child(self)
+
+class VisitNode():
+    def __init__(self, node : Node) -> None:
+        self.currentNode = node
+        self.parentIndex = [0]
+        while len(self.currentNode.children) != 0:
+            self.parentIndex.append(0)
+            self.currentNode = self.currentNode.children[0]
+
+    def next(self) -> Node | None:
+        if not self.currentNode.parent:
+            return None
+        if len(self.currentNode.parent.children) == self.parentIndex[0]+1:
+            if self.currentNode.parent and self.currentNode.parent.parent:
+                self.parentIndex.pop(0)
+                self.currentNode = self.currentNode.parent.parent.children[self.parentIndex[0]]
+                return self.currentNode
+            else:
+                return None
+        else:
+            self.parentIndex[0]+=1
+            self.currentNode = self.currentNode.parent.children[self.parentIndex[0]]
+            while len(self.currentNode.children) != 0:
+                self.parentIndex.insert(0, 0)
+                self.currentNode = self.currentNode.children[0]
+            return self.currentNode
+            
+    
 
 class bidirectional_iterator(object):
     def __init__(self, collection : list[tuple[str, str]]):
@@ -195,12 +231,7 @@ class Parse():
     def peek(self, token : tuple[str, str] | None, name : str | tuple[str, ...], value : str | None | tuple[str, ...] = None) -> bool:
         if token is None:
             return False
-        elif token[0] in name and value is None:
-            return True
-        elif token[0] in name and value is not None and token[1] in value:
-            return True
-        else:
-            return False
+        return (type(name)  is str and token[0] == name or type(name) is tuple and token[0] in name) and (value is None or (type(value) is str and token[1] == value or type(value) is tuple and token[1] in value))
 
     def END_OF_LINE(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
         self.match(tokens.curr(), "END-OF-LINE", ";")
@@ -250,6 +281,12 @@ class Parse():
             if currentNode.name == "DECIMAL":
                 exitWithError(f"Cant have a second dot after {cast(Node, currentNode.get_child()).value}!")
             tokens, currentNode = self.DOT(tokens, currentNode)
+        return tokens, currentNode
+
+    def BOOL(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
+        self.match(tokens.curr(), "IDENT", ("T", "F"))
+        currentNode.add_child_token(("BOOL", tokens.curr()[1]))
+        tokens.next()
         return tokens, currentNode
 
     def IDENT(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
@@ -439,7 +476,10 @@ class Parse():
         elif self.peek(tokens.curr(), "STR-BEGIN"):
             tokens, currentNode = self.STR(tokens, currentNode)
         elif self.peek(tokens.curr(), "IDENT"):
-            tokens, currentNode = self.IDENT(tokens, currentNode)
+            if self.peek(tokens.curr(), "IDENT", ("T", "F")):
+                tokens, currentNode = self.BOOL(tokens, currentNode)
+            else:    
+                tokens, currentNode = self.IDENT(tokens, currentNode)
         else:
             exitWithError("Expected INT or STR-BEING or IDENT instead of "+tokens.curr()[0]+"!")
         return tokens, currentNode
@@ -451,7 +491,6 @@ class Parse():
         elif self.peek(tokens.curr(), "SUB"):
             tokens, currentNode = self.SUB(tokens, currentNode)
         tokens, currentNode = self.PRIMARY(tokens, currentNode)
-        
         return tokens, currentNode
 
     def TERM(self, tokens : bidirectional_iterator, currentNode : Node) -> tuple[bidirectional_iterator, Node]:
@@ -643,6 +682,9 @@ class Parse():
                 else:
                     tokens, currentNode = self.COMPARISON(tokens, currentNode)
                     currentNode = variable_statment
+                    if(self.peek(tokens.curr(), "OPEN-P")):
+                        tokens, currentNode = self.OPEN_P(tokens, currentNode)
+                        tokens, currentNode = self.CLOSE_P(tokens, currentNode)
                     tokens, currentNode = self.END_OF_LINE(tokens, currentNode)
             else:
                 exitWithError("prev_child is missing?")
@@ -661,8 +703,6 @@ class Parse():
         currentNode = currentNode.add_child_token(("STATMENT", ""))
         if self.peek(tokens.curr(), "COMMENT-BEGIN"):
             tokens, currentNode = self.COMMENT(tokens, currentNode)
-        elif self.peek(tokens.curr(), "SET"):
-            tokens, currentNode = self.VARIABLE(tokens, currentNode)
         elif self.peek(tokens.curr(), "IDENT"):
             if tokens.curr()[1] == "out":
                 tokens, currentNode = self.OUT(tokens, currentNode)
@@ -686,21 +726,23 @@ class Parse():
         return tokens, currentNode
 
 def emitter(NodeTree : Node):
-    pass
+    visitNode = VisitNode(NodeTree)
+    node = visitNode.currentNode
+    while node is not None:
+        print(node.name)
+        node = visitNode.next()
+
 
 def exitWithError(Error : str) -> NoReturn:
     # print(Error)
     sys.exit(colored(Error, 'red'))
 
 def print_node(node : Node):
-    print((node.name, node.value))
-    print("Has:")
-    for element in node.children:
-        print((element.name, element.value), end=" ")
-    print("\n")
-    for element in node.children:
-        if len(element.children) != 0:
-            print_node(element)
+    visitnode = VisitNode(node)
+    currnode = visitnode.currentNode
+    while currnode is not None:
+        print((currnode.name, currnode.value))
+        currnode = visitnode.next()
 
 if len(sys.argv) == 1:
     exitWithError("Need file input(-f helloWorld.ynex) or string of code(-c \'out(\"hello world\");\')!")
